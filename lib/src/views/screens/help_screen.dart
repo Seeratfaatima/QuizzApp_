@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:quizz_app/services/help_service.dart';
 
 class HelpCentreScreen extends StatefulWidget {
   const HelpCentreScreen({super.key});
@@ -10,6 +12,7 @@ class HelpCentreScreen extends StatefulWidget {
 class _HelpCentreScreenState extends State<HelpCentreScreen> {
   // 1. Create a global key that uniquely identifies the Form widget
   final _formKey = GlobalKey<FormState>();
+  final HelpService _helpService = HelpService();
 
   // 2. Create controllers to retrieve the text
   final TextEditingController _nameController = TextEditingController();
@@ -59,22 +62,56 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
     );
   }
 
-  void _submitForm() {
-    // 3. Validate returns true if the form is valid, or false otherwise.
+  void _submitForm() async {
+    // Validate returns true if the form is valid, or false otherwise.
     if (_formKey.currentState!.validate()) {
-      // If the form is valid, display a snackbar.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Message Sent Successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      try {
+        // Get current user
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please log in to submit a help request'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
 
-      // Clear fields after success
-      _nameController.clear();
-      _emailController.clear();
-      _subjectController.clear();
-      _messageController.clear();
+        // Submit to Firestore
+        await _helpService.submitHelpRequest(
+          userId: user.uid,
+          userEmail: user.email ?? 'No email',
+          userName: user.displayName ?? user.email?.split('@')[0] ?? 'User',
+          subject: _subjectController.text.trim(),
+          message: _messageController.text.trim(),
+        );
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Message Sent Successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Clear fields after success
+          _nameController.clear();
+          _emailController.clear();
+          _subjectController.clear();
+          _messageController.clear();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 

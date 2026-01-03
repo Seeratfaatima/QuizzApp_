@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'about_screen.dart';
 import 'help_screen.dart';
 import 'logout.dart'; // 1. Import the Logout Screen
+import 'forgotPassword_screen.dart'; // Import ForgotPassword Screen
 
 class SettingsScreen extends StatelessWidget {
   static const String _backgroundImagePath = 'assets/images/background.png';
@@ -108,8 +110,27 @@ class SettingsScreen extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 12.0),
+                        
+                        // 2. RESET PASSWORD
+                        _buildSettingsItem(
 
-                        // 2. LOGOUT NAVIGATION
+
+                          icon: Icons.help_outline, 
+                          text: 'Reset Password',
+                          color: Colors.tealAccent.shade400,
+                          onTap: () {
+                            final user = FirebaseAuth.instance.currentUser;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ForgotPasswordScreen(email: user?.email),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12.0),
+
+                        // 3. LOGOUT NAVIGATION
                         _buildSettingsItem(
                           icon: Icons.logout,
                           text: 'Logout',

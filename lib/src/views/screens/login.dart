@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:quizz_app/services/auth_service.dart'; // Import AuthService
 import 'welcome_screen.dart';
 import 'signup_screen.dart';
 import 'forgotPassword_screen.dart';
@@ -14,9 +15,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService(); // Instance of AuthService
 
   bool _rememberMe = false;
   bool _isPasswordObscured = true;
+  bool _isLoading = false; // Loading state
+
 
   @override
   void dispose() {
@@ -25,22 +29,97 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const WelcomeScreen(),
-        ),
-      );
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        await _authService.signIn(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
+        );
+
+        // --- EMAIL VERIFICATION CHECK ---
+        bool isVerified = await _authService.isEmailVerified();
+        
+        if (!isVerified) {
+          if (mounted) {
+            _showUnverifiedDialog();
+          }
+          return;
+        }
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WelcomeScreen(),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
+  }
+
+  void _showUnverifiedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Force them to interact with the dialog
+      builder: (context) => AlertDialog(
+        title: const Text('Verify Email'),
+        content: const Text(
+          'Your email is not verified yet. Please check your inbox for the verification link.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await _authService.signOut();
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                await _authService.sendEmailVerification();
+                await _authService.signOut(); // Sign out after sending
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Verification link resent!'), backgroundColor: Colors.green),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)
+                   );
+                }
+              }
+            },
+            child: const Text('Resend email'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine screen size for responsive adjustments if needed
-    final Size screenSize = MediaQuery.of(context).size;
-
     return Scaffold(
       // We use a Stack to place the background image behind everything
       body: Stack(
@@ -237,9 +316,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _handleLogin,
+                              onPressed: _isLoading ? null : _handleLogin,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00AFA3), // Bright Cyan/Teal from image
+                                backgroundColor: const Color(0xFF00AFA3), // Bright Cyan/Teal
                                 foregroundColor: Colors.black, // Text color
                                 elevation: 0,
                                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -247,48 +326,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: const Text(
+                              child: _isLoading
+                                  ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                                ),
+                              )
+                                  : const Text(
                                 'Log In',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black, // Or Colors.white depending on preference
+                                  color: Colors.black,
                                 ),
                               ),
                             ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // "Or login with"
-                          const Text(
-                            'Or login with',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Social Icons
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildSocialButton(
-                                icon: Icons.g_mobiledata,
-                                color: Colors.red,
-                                onTap: () {},
-                              ),
-                              const SizedBox(width: 16),
-                              _buildSocialButton(
-                                icon: Icons.facebook,
-                                color: Colors.blue,
-                                onTap: () {},
-                              ),
-                              const SizedBox(width: 16),
-                              _buildSocialButton(
-                                icon: Icons.apple,
-                                color: Colors.black,
-                                onTap: () {},
-                              ),
-                            ],
                           ),
 
                           const SizedBox(height: 24),
@@ -342,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Image.asset(
                         'assets/images/logo.png', // Ensure this matches your asset path
-                        height: 120, // Adjust height based on your logo aspect ratio
+                        height: 120,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -352,23 +407,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({required IconData icon, required Color color, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Icon(icon, color: color, size: 28),
       ),
     );
   }

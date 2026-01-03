@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:quizz_app/services/auth_service.dart';
 import 'emailVerification_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  final String? email;
+  const ForgotPasswordScreen({super.key, this.email});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -10,7 +12,15 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
+  late final TextEditingController _emailController;
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController(text: widget.email ?? '');
+  }
 
   @override
   void dispose() {
@@ -18,18 +28,42 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _handleResetPassword() {
+  Future<void> _handleResetPassword() async {
     if (_formKey.currentState!.validate()) {
-      // Navigate to Verification Screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          // Pass the text from the controller
-          builder: (context) => VerificationScreen(
-            email: _emailController.text,
-          ),
-        ),
-      );
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        await _authService.resetPassword(_emailController.text.trim());
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Password reset email sent!'), backgroundColor: Colors.green),
+          );
+          // Navigate to Verification Screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              // Pass the text from the controller
+              builder: (context) => VerificationScreen(
+                email: _emailController.text,
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -125,7 +159,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                       SizedBox(height: screenSize.height * 0.05),
                       GestureDetector(
-                        onTap: _handleResetPassword,
+                        onTap: _isLoading ? null : _handleResetPassword,
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -133,15 +167,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             color: const Color(0xFF00E6A7),
                             borderRadius: BorderRadius.circular(12.0),
                           ),
-                          child: const Center(
-                            child: Text(
-                              'Reset Password',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          child: Center(
+                            child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                                  ),
+                                )
+                              : const Text(
+                                  'Reset Password',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                           ),
                         ),
                       ),

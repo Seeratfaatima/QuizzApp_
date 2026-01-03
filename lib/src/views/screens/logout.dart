@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Required for BackdropFilter
 import 'login.dart'; // Import LoginScreen to navigate there on "Yes"
+import 'package:quizz_app/services/auth_service.dart';
 
 class LogoutScreen extends StatelessWidget {
   const LogoutScreen({super.key});
@@ -67,13 +68,21 @@ class LogoutScreen extends StatelessWidget {
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
                         ),
-                        onPressed: () {
-                          // Logout Logic: Remove all screens and go to Login
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (context) => const LoginScreen()),
-                                (route) => false, // Predicate: remove all previous routes
-                          );
+                        onPressed: () async {
+                          // Logout Logic: Actually sign out from Firebase
+                          final AuthService authService = AuthService();
+                          await authService.signOut();
+                          
+                          // After signing out, AuthWrapper in main.dart will automatically
+                          // see the null user and show LoginScreen. 
+                          // But we can also push replacement for immediate feedback.
+                          if (context.mounted) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginScreen()),
+                              (route) => false,
+                            );
+                          }
                         },
                         child: const Text(
                           'Yes',

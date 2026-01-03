@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:quizz_app/src/models/quiz_model.dart';
 
 class ReviewScreen extends StatelessWidget {
   final Map<String, dynamic> quizContent;
   final Map<int, int> userAnswers; // Key: Question Index, Value: Selected Option Index
+  final List<Question> questions; // Accept Question objects
 
   const ReviewScreen({
     super.key,
     required this.quizContent,
     required this.userAnswers,
+    required this.questions,
   });
 
   @override
   Widget build(BuildContext context) {
-    final List questions = quizContent['questions'] ?? [];
+    // No need to fetch from quizContent anymore
+    // final List questions = quizContent['questions'] ?? [];
 
     return Scaffold(
       body: Stack(
@@ -61,10 +65,10 @@ class ReviewScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: List.generate(questions.length, (index) {
-                    final questionData = questions[index];
-                    final int correctIndex = questionData['answer'];
+                    final Question questionData = questions[index]; // Use Question object
+                    final int correctIndex = questionData.correctOptionIndex;
                     final int? userSelectedIndex = userAnswers[index];
-                    final List<String> options = List<String>.from(questionData['options']);
+                    final List<String> options = questionData.options;
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +88,7 @@ class ReviewScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8.0),
                         Text(
-                          questionData['question'],
+                          questionData.questionText,
                           style: const TextStyle(color: Colors.white, fontSize: 16),
                         ),
                         const SizedBox(height: 12.0),
@@ -108,7 +112,7 @@ class ReviewScreen extends StatelessWidget {
                             // User was Wrong (Show selected as Wrong, then Correct answer)
                             _buildAnswerRow(
                               icon: Icons.cancel,
-                              text: options[userSelectedIndex],
+                              text: options[userSelectedIndex], // Safe access
                               color: Colors.redAccent.shade400,
                             ),
                             const SizedBox(height: 8),

@@ -1,28 +1,94 @@
 import 'package:flutter/material.dart';
-import 'quiz_data.dart'; // Import the global data
+import 'package:quizz_app/services/quiz_service.dart';
+import 'package:quizz_app/src/models/quiz_model.dart';
+import 'category_quizzes_screen.dart';
 
 class DiscoverCategoryView extends StatelessWidget {
-  const DiscoverCategoryView({super.key});
+  final String searchQuery;
+  
+  const DiscoverCategoryView({super.key, this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
-    if (globalCategories.isEmpty) {
-      return const Center(child: Text("No categories available."));
-    }
+    final QuizService quizService = QuizService();
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: globalCategories.length,
-      itemBuilder: (context, index) {
-        final category = globalCategories[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
-          child: _buildCategoryItem(
-            icon: category['icon'] ?? Icons.category,
-            title: category['title'] ?? 'Unknown',
-            iconColor: category['iconColor'] ?? Colors.grey,
-            iconBackgroundColor: category['bgColor'] ?? Colors.grey.shade200,
-          ),
+    return StreamBuilder<List<Quiz>>(
+      stream: quizService.getQuizzes(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("No categories available yet."));
+        }
+
+        final quizzes = snapshot.data!;
+        // Extract unique categories (subtitles) and finding a representative quiz for styling
+        final Map<String, Quiz> categoryMap = {};
+        for (var quiz in quizzes) {
+          if (quiz.subtitle.isNotEmpty && !categoryMap.containsKey(quiz.subtitle)) {
+            categoryMap[quiz.subtitle] = quiz;
+          }
+        }
+
+        var categories = categoryMap.values.toList();
+        
+        // Filter categories based on search query
+        if (searchQuery.isNotEmpty) {
+          categories = categories.where((quiz) {
+            return quiz.subtitle.toLowerCase().contains(searchQuery.toLowerCase());
+          }).toList();
+        }
+        
+        if (categories.isEmpty) {
+           return Center(
+             child: Text(
+               searchQuery.isNotEmpty 
+                 ? "No categories found for '$searchQuery'"
+                 : "No categories found.",
+               style: const TextStyle(color: Colors.grey),
+             ),
+           );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(24),
+          itemCount: categories.length,
+          itemBuilder: (context, index) {
+            final quiz = categories[index];
+            final categoryName = quiz.subtitle;
+
+             // Map iconName String to IconData
+            IconData iconData = Icons.category;
+             if (quiz.iconName == 'sports_soccer') iconData = Icons.sports_soccer;
+             if (quiz.iconName == 'music_note') iconData = Icons.music_note;
+             if (quiz.iconName == 'science') iconData = Icons.science;
+
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CategoryQuizzesScreen(
+                        categoryName: categoryName,
+                        categoryColor: Color(quiz.colorHex),
+                        categoryIcon: iconData,
+                      ),
+                    ),
+                  );
+                },
+                child: _buildCategoryItem(
+                  icon: iconData,
+                  title: categoryName,
+                  iconColor: Color(quiz.colorHex),
+                  iconBackgroundColor: Color(quiz.colorHex).withOpacity(0.1),
+                ),
+              ),
+            );
+          },
         );
       },
     );

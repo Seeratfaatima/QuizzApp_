@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:quizz_app/services/quiz_service.dart';
+import 'package:quizz_app/src/models/quiz_model.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:quizz_app/services/auth_service.dart'; // Import AuthService
+import 'package:quizz_app/src/views/screens/adminDashboard.dart'; // Import AdminDashboard
 import 'profile.dart';
 import 'Discover_screen.dart';
 import 'leaderboard.dart';
-import 'quiz_data.dart';
 import 'quiz_screen.dart'; // Import Quiz Screen
 
 class DashboardScreen extends StatefulWidget {
@@ -14,6 +18,56 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+  final QuizService _quizService = QuizService(); // Instance of QuizService
+  final AuthService _authService = AuthService();
+  bool _isAdmin = false;
+  String _userName = "User";
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole();
+    _loadUserName();
+  }
+
+  void _loadUserName() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Auto-repair: Ensure user document exists
+      _authService.createUserDocument(user.uid, user.email ?? "").catchError((e) {
+        debugPrint("Auto-repair user doc error: $e");
+      });
+
+      if (mounted) {
+        setState(() {
+          _userName = user.displayName ?? user.email?.split('@')[0] ?? "User";
+        });
+      }
+    }
+  }
+
+  Future<void> _checkUserRole() async {
+    final user = _authService.currentUser;
+    if (user != null) {
+      final role = await _authService.getUserRole(user.uid);
+      if (mounted) {
+        setState(() {
+          _isAdmin = role == 'admin';
+        });
+      }
+    }
+  }
+  
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return "GOOD MORNING";
+    } else if (hour < 17) {
+      return "GOOD AFTERNOON";
+    } else {
+      return "GOOD EVENING";
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == 1) {
@@ -26,8 +80,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() { _selectedIndex = index; });
     }
   }
-
-  // ... (buildTopHeader, buildBottomNav etc remain same) ...
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Column(
             children: [
               _buildTopHeader(),
-              _buildRecentQuizCard(),
+              // _buildRecentQuizCard(), // Start hidden to avoid confusion
             ],
           ),
           Padding(
@@ -66,6 +118,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
+      floatingActionButton: _isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                );
+              },
+              backgroundColor: const Color(0xFF6A5ACD),
+               icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
+              label: const Text("Admin", style: TextStyle(color: Colors.white)),
+            )
+          : null,
     );
   }
 
@@ -79,13 +144,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                  onPressed: () { Navigator.pop(context); },
-                ),
+                const SizedBox(width: 48), // Placeholder for alignment
                 GestureDetector(
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()))
+                    .then((_) => _loadUserName());
                   },
                   child: const CircleAvatar(
                     radius: 25,
@@ -96,56 +159,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            const Row(
+            Row(
               children: [
-                Icon(Icons.wb_sunny_outlined, color: Colors.white70, size: 18),
-                SizedBox(width: 8),
-                Text("GOOD MORNING", style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                const Icon(Icons.wb_sunny_outlined, color: Colors.white70, size: 18),
+                const SizedBox(width: 8),
+                Text(_getGreeting(), style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 8),
-            const Text("Seerat", style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+             StreamBuilder<User?>(
+              stream: FirebaseAuth.instance.userChanges(), 
+              builder: (context, snapshot) {
+                 final user = snapshot.data;
+                 final displayName = user?.displayName ?? user?.email?.split('@')[0] ?? "User";
+                 return Text(displayName, style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold));
+              }
+            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildRecentQuizCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFEC9E0), Color(0xFFFAAFCA)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("RECENT QUIZ", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
-              SizedBox(height: 4),
-              Text("Flutter Quiz", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(
-            width: 55,
-            height: 55,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(value: 0.65, color: Colors.white),
-                Text("65%", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -159,31 +190,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Text("Live Quizzes", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
         ),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: globalQuizzes.length,
-            itemBuilder: (context, index) {
-              final quiz = globalQuizzes[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                // --- THIS IS THE FIX: WRAP IN GESTURE DETECTOR ---
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => QuizScreen(quizContent: quiz),
+          child: StreamBuilder<List<Quiz>>(
+            stream: _quizService.getQuizzes(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('No quizzes available'));
+              }
+
+              final quizzes = snapshot.data!;
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: quizzes.length,
+                itemBuilder: (context, index) {
+                  final quiz = quizzes[index];
+                  // Map iconName String to IconData
+                  IconData iconData = Icons.article; // Default
+                  if (quiz.iconName == 'sports_soccer') iconData = Icons.sports_soccer;
+                  if (quiz.iconName == 'music_note') iconData = Icons.music_note;
+                  if (quiz.iconName == 'science') iconData = Icons.science;
+                  // Add more mappings as needed
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: GestureDetector(
+                      onTap: () {
+                         // Convert Quiz object back to Map for QuizScreen if needed
+                         final quizMap = {
+                           'title': quiz.title,
+                           'subtitle': quiz.subtitle,
+                           'icon': iconData,
+                           'iconColor': Color(quiz.colorHex),
+                           'bgColor': Color(quiz.colorHex).withOpacity(0.2), // Approx
+                         };
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuizScreen(
+                              quizContent: quizMap,
+                              quizId: quiz.id, // Pass quiz.id
+                            ),
+                          ),
+                        );
+                      },
+                      child: _buildQuizItem(
+                        icon: iconData,
+                        title: quiz.title,
+                        subtitle: quiz.subtitle,
+                        iconColor: Color(quiz.colorHex),
+                        iconBackgroundColor: Color(quiz.colorHex).withOpacity(0.1),
                       ),
-                    );
-                  },
-                  child: _buildQuizItem(
-                    icon: quiz['icon'] ?? Icons.article,
-                    title: quiz['title'] ?? 'Unknown',
-                    subtitle: quiz['subtitle'] ?? '',
-                    iconColor: quiz['iconColor'] ?? Colors.blue,
-                    iconBackgroundColor: quiz['bgColor'] ?? Colors.blue.shade50,
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
           ),

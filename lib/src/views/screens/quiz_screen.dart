@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:quizz_app/services/quiz_service.dart';
+import 'package:quizz_app/src/models/quiz_model.dart';
 import 'score_screen.dart';
 
 class QuizScreen extends StatefulWidget {
   final Map<String, dynamic> quizContent;
+  final String? quizId; // Add quizId
 
-  const QuizScreen({super.key, required this.quizContent});
+  const QuizScreen({super.key, required this.quizContent, this.quizId});
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
@@ -14,26 +17,100 @@ class _QuizScreenState extends State<QuizScreen> {
   int _selectedOption = -1;
   int _currentQuestionIndex = 0;
   int _score = 0;
+  List<Question> _questions = []; // Store fetched questions
+  bool _isLoading = true;
+  final QuizService _quizService = QuizService();
 
   // 1. Store User Answers (Key: QuestionIndex, Value: SelectedOptionIndex)
   final Map<int, int> _userAnswers = {};
 
   @override
+  void initState() {
+    super.initState();
+    _loadQuestions();
+  }
+
+  Future<void> _loadQuestions() async {
+    // If questions are passed in quizContent, use them (legacy/local support)
+    if (widget.quizId != null) {
+      debugPrint("Fetching questions for Quiz ID: ${widget.quizId}");
+      _quizService.getQuestions(widget.quizId!).listen((questions) {
+        debugPrint("Fetched ${questions.length} questions.");
+        if (mounted) {
+          setState(() {
+            _questions = questions;
+            _isLoading = false;
+          });
+        }
+      }, onError: (e) {
+        debugPrint("Error fetching questions: $e");
+        if (mounted) {
+          setState(() {
+             _isLoading = false; // Fix infinite loading
+          });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error loading questions: $e")));
+        }
+      });
+    } else {
+      // Fallback for null ID (maybe local data?)
+       if (widget.quizContent['questions'] != null) {
+          // Adapt local json structure to Question model if needed
+          // For simplicity, we might skip this or handle it if you strictly want backend.
+          // Let's assume for now backend is the way.
+          setState(() {
+            _isLoading = false;
+          });
+       } else {
+          setState(() {
+             _isLoading = false;
+          });
+       }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final List questions = widget.quizContent['questions'] ?? [];
-    final int totalQuestions = questions.length;
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final int totalQuestions = _questions.length;
 
     if (totalQuestions == 0) {
       return Scaffold(
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: const Center(child: Text("No questions")),
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, 
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black), // Black for visibility on white/empty
+          onPressed: () => Navigator.pop(context),
+        )),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text(
+                "No questions found for this quiz.",
+                style: TextStyle(fontSize: 18, color: Colors.black54),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Please delete this quiz from Admin Panel and create a new one to fix data issues.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              Text("Quiz ID: ${widget.quizId}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+        ),
       );
     }
 
-    final currentQuestionData = questions[_currentQuestionIndex];
-    final String questionText = currentQuestionData['question'];
-    final List<String> options = List<String>.from(currentQuestionData['options']);
-    final int correctAnswerIndex = currentQuestionData['answer'];
+    final currentQuestionData = _questions[_currentQuestionIndex];
+    final String questionText = currentQuestionData.questionText;
+    final List<String> options = currentQuestionData.options;
+    final int correctAnswerIndex = currentQuestionData.correctOptionIndex;
 
     final double progress = (_currentQuestionIndex + 1) / totalQuestions;
 
@@ -67,6 +144,7 @@ class _QuizScreenState extends State<QuizScreen> {
               totalQuestions: totalQuestions,
               quizContent: widget.quizContent, // Pass original quiz data
               userAnswers: _userAnswers,       // Pass user answers
+              questions: _questions,           // Pass fetched questions
             ),
           ),
         );

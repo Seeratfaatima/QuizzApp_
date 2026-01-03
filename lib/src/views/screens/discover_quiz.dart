@@ -1,34 +1,101 @@
 import 'package:flutter/material.dart';
-import 'quiz_data.dart'; // 1. Import the global data
+import 'package:quizz_app/services/quiz_service.dart';
+import 'package:quizz_app/src/models/quiz_model.dart';
+import 'quiz_screen.dart'; // Import Quiz Screen
 
 class DiscoverQuizView extends StatelessWidget {
-  const DiscoverQuizView({super.key});
+  final String searchQuery;
+  
+  const DiscoverQuizView({super.key, this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
-    // Check if there are quizzes
-    if (globalQuizzes.isEmpty) {
-      return const Center(
-        child: Text("No quizzes available yet."),
-      );
-    }
+    final QuizService quizService = QuizService(); // Instance
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: globalQuizzes.length,
-      itemBuilder: (context, index) {
-        final quiz = globalQuizzes[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
-          child: _buildQuizItem(
-            icon: quiz['icon'] ?? Icons.article,
-            title: quiz['title'] ?? 'Unknown',
-            subtitle: quiz['subtitle'] ?? '',
-            iconColor: quiz['iconColor'] ?? Colors.blue,
-            iconBackgroundColor: quiz['bgColor'] ?? Colors.blue.shade50,
-          ),
+    return StreamBuilder<List<Quiz>>(
+      stream: quizService.getQuizzes(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+           return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text("No quizzes available yet."),
+          );
+        }
+
+        var quizzes = snapshot.data!;
+        
+        // Filter based on search query
+        if (searchQuery.isNotEmpty) {
+          quizzes = quizzes.where((quiz) {
+            return quiz.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
+                   quiz.subtitle.toLowerCase().contains(searchQuery.toLowerCase());
+          }).toList();
+        }
+        
+        if (quizzes.isEmpty) {
+          return Center(
+            child: Text(
+              "No quizzes found for '$searchQuery'",
+              style: const TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(24),
+          itemCount: quizzes.length,
+          itemBuilder: (context, index) {
+            final quiz = quizzes[index];
+            
+            // Map iconName String to IconData (Helper logic duplicated for display)
+            IconData iconData = Icons.article;
+            if (quiz.iconName == 'sports_soccer') iconData = Icons.sports_soccer;
+            if (quiz.iconName == 'music_note') iconData = Icons.music_note;
+            if (quiz.iconName == 'science') iconData = Icons.science;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: GestureDetector(
+                 onTap: () {
+                     // Create compatibility map for QuizScreen
+                     final quizMap = {
+                       'title': quiz.title,
+                       'subtitle': quiz.subtitle,
+                       'icon': iconData,
+                       'iconColor': Color(quiz.colorHex),
+                       'bgColor': Color(quiz.colorHex).withOpacity(0.2),
+                     };
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => QuizScreen(
+                          quizContent: quizMap,
+                          quizId: quiz.id, // Pass quiz.id
+                        ),
+                      ),
+                    );
+                 },
+                child: StreamBuilder<int>(
+                  stream: quizService.getQuestionCountStream(quiz.id),
+                  builder: (context, countSnapshot) {
+                    final count = countSnapshot.data ?? 0;
+                    return _buildQuizItem(
+                      icon: iconData,
+                      title: quiz.title,
+                      subtitle: "${quiz.subtitle} • $count Qs",
+                      iconColor: Color(quiz.colorHex),
+                      iconBackgroundColor: Color(quiz.colorHex).withOpacity(0.1),
+                    );
+                  }
+                ),
+              ),
+            );
+          },
         );
-      },
+      }
     );
   }
 

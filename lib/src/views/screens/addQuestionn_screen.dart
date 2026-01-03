@@ -1,8 +1,15 @@
+import 'package:quizz_app/src/models/quiz_model.dart';
 import 'package:flutter/material.dart';
 
 class AddQuestionScreen extends StatefulWidget {
   final String categoryTitle;
-  const AddQuestionScreen({super.key, required this.categoryTitle});
+  final Question? existingQuestion; // Optional: for editing
+
+  const AddQuestionScreen({
+    super.key,
+    required this.categoryTitle,
+    this.existingQuestion,
+  });
 
   @override
   State<AddQuestionScreen> createState() => _AddQuestionScreenState();
@@ -15,6 +22,22 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
   final TextEditingController _option3Controller = TextEditingController();
   final TextEditingController _option4Controller = TextEditingController();
   final TextEditingController _correctAnswerController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingQuestion != null) {
+      final q = widget.existingQuestion!;
+      _questionController.text = q.questionText;
+      if (q.options.length >= 4) {
+        _option1Controller.text = q.options[0];
+        _option2Controller.text = q.options[1];
+        _option3Controller.text = q.options[2];
+        _option4Controller.text = q.options[3];
+      }
+      _correctAnswerController.text = (q.correctOptionIndex + 1).toString();
+    }
+  }
 
   @override
   void dispose() {
@@ -40,9 +63,21 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
           backgroundColor: Colors.redAccent,
         ),
       );
-    } else {
-      _showSuccessDialog();
+      return;
     }
+
+    final int? correctOption = int.tryParse(_correctAnswerController.text);
+    if (correctOption == null || correctOption < 1 || correctOption > 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Correct option must be between 1 and 4"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    _showSuccessDialog();
   }
 
   Future<void> _showSuccessDialog() async {
@@ -55,10 +90,10 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
             borderRadius: BorderRadius.circular(12.0),
           ),
           backgroundColor: Colors.white,
-          title: const Text(
-            'Quiz created successfully!!',
+          title: Text(
+            widget.existingQuestion != null ? 'Question Updated!' : 'Quiz created successfully!!',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.black,
               fontWeight: FontWeight.bold,
             ),
@@ -79,7 +114,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
                 onPressed: () {
                   // 1. CREATE THE QUESTION OBJECT
                   Map<String, dynamic> newQuestion = {
-                    'question': _questionController.text,
+                    'questionText': _questionController.text,
                     'options': [
                       _option1Controller.text,
                       _option2Controller.text,
@@ -87,7 +122,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
                       _option4Controller.text,
                     ],
                     // Convert "1" -> 0 index, "2" -> 1 index, etc.
-                    'answer': (int.tryParse(_correctAnswerController.text) ?? 1) - 1,
+                    'correctOptionIndex': (int.tryParse(_correctAnswerController.text) ?? 1) - 1,
                   };
 
                   Navigator.of(context).pop(); // Close Dialog
@@ -130,7 +165,7 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
             },
           ),
           title: Text(
-            'Add Question to ${widget.categoryTitle}',
+            widget.existingQuestion != null ? 'Edit Question' : 'Add Question to ${widget.categoryTitle}',
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -166,9 +201,9 @@ class _AddQuestionScreenState extends State<AddQuestionScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                   ),
                   onPressed: _createQuestion,
-                  child: const Text(
-                    'Create',
-                    style: TextStyle(fontSize: 16),
+                  child: Text(
+                    widget.existingQuestion != null ? 'Update' : 'Create',
+                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
               ],

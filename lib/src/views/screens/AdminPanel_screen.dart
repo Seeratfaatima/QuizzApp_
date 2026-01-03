@@ -50,28 +50,13 @@ class AdminPanelScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Enter your information here",
+                      "Select your role to continue",
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
                         fontSize: 16,
                       ),
                     ),
-                    SizedBox(height: screenSize.height * 0.05),
-                    TextField(
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                      decoration: InputDecoration(
-                        hintText: "First Name",
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                        filled: true,
-                        fillColor: const Color(0xFF2B3A5E),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-                      ),
-                    ),
-                    SizedBox(height: screenSize.height * 0.04),
+                    SizedBox(height: screenSize.height * 0.08),
 
                     // Admin Button
                     _buildAuthButton(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'resetScreen.dart'; // 1. Import the Reset Screen
+import 'package:quizz_app/services/auth_service.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
@@ -11,92 +10,33 @@ class VerificationScreen extends StatefulWidget {
 }
 
 class _VerificationScreenState extends State<VerificationScreen> {
-  final List<TextEditingController> _controllers =
-  List.generate(5, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode());
+  final AuthService _authService = AuthService();
+  bool _isResending = false;
 
-  @override
-  void initState() {
-    super.initState();
-    for (int i = 0; i < 5; i++) {
-      _controllers[i].addListener(() {
-        if (_controllers[i].text.length == 1 && i < 4) {
-          _focusNodes[i + 1].requestFocus();
-        }
-      });
+  Future<void> _resendLink() async {
+    setState(() {
+      _isResending = true;
+    });
+    try {
+      await _authService.resetPassword(widget.email);
+       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reset link resent!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResending = false;
+        });
+      }
     }
-  }
-
-  @override
-  void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    for (var focusNode in _focusNodes) {
-      focusNode.dispose();
-    }
-    super.dispose();
-  }
-
-  void _verifyCode() {
-    String code = _controllers.map((controller) => controller.text).join();
-
-    if (code.length < 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter the full 5-digit code'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    } else {
-      // 2. Navigate to Reset Screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const PasswordResetSuccessScreen(),
-        ),
-      );
-    }
-  }
-
-  Widget _buildCodeBox(int index) {
-    return SizedBox(
-      width: 55,
-      height: 55,
-      child: TextFormField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        maxLength: 1,
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-        decoration: InputDecoration(
-          counterText: "",
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12.0),
-            borderSide: const BorderSide(color: Colors.white54, width: 1.5),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12.0),
-            borderSide: const BorderSide(color: Color(0xFF50E3C2), width: 2.0),
-          ),
-        ),
-        onChanged: (value) {
-          if (value.length == 1 && index < 4) {
-            _focusNodes[index + 1].requestFocus();
-          } else if (value.isEmpty && index > 0) {
-            _focusNodes[index - 1].requestFocus();
-          }
-        },
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-        ],
-      ),
-    );
   }
 
   @override
@@ -150,7 +90,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               height: 1.5,
                             ),
                             children: [
-                              const TextSpan(text: 'We sent a reset link to '),
+                              const TextSpan(text: 'We sent a password reset link to '),
                               TextSpan(
                                 text: '${widget.email}\n',
                                 style: const TextStyle(
@@ -159,23 +99,27 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                 ),
                               ),
                               const TextSpan(
-                                  text: 'enter 5 digit code that mentioned in the email'),
+                                  text: 'Please check your inbox and click the link to reset your password.'),
                             ],
                           ),
                         ),
                         const SizedBox(height: 40),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            5,
-                                (index) => _buildCodeBox(index),
-                          ),
+                        
+                        Center(
+                          child: Icon(Icons.mark_email_read_outlined, size: 100, color: Colors.tealAccent.shade400),
                         ),
+                        
                         const SizedBox(height: 40),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _verifyCode,
+                            onPressed: () {
+                               // Pop to return to previous screen. 
+                               // If this was pushed from Settings, it goes back to Settings.
+                               // If from Login -> ForgotPassword -> Verification, it goes back to ForgotPassword.
+                               // Ideally we might want to popTwice, but simple pop is safe.
+                               Navigator.pop(context);
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF50E3C2),
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -184,7 +128,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               ),
                             ),
                             child: const Text(
-                              'Verify Code',
+                              'Back',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -198,21 +142,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Text(
-                              "Haven't got the email yet? ",
+                              "Didn't receive the link? ",
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 15,
                               ),
                             ),
                             TextButton(
-                              onPressed: () {},
+                              onPressed: _isResending ? null : _resendLink,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: const Size(50, 30),
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: const Text(
-                                'Resend email',
+                              child: _isResending 
+                                ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Text(
+                                'Resend',
                                 style: TextStyle(
                                   color: Color(0xFF50E3C2),
                                   fontWeight: FontWeight.bold,
