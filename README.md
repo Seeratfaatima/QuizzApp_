@@ -62,7 +62,7 @@ A dynamic and interactive Quiz Application built with Flutter. This cross-platfo
 
 ## 📸 Screenshots
 
-*(Add your screenshots here)*
+![App Preview](assets/images/app_preview.png)
 
 ## 🤝 Contributing
 
